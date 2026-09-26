@@ -1,0 +1,20 @@
+---
+title: "JUSTIN LEUNG Project Page"
+---
+
+## About Me
+
+I'm a Master's student in Business Analytics at Baruch College's Zicklin School of Business, with a B.A. in Economics from Hunter College. I currently work in Accounts Payable at the New York City Housing Authority (NYCHA), where I process high-volume invoice workflows in Oracle E-Business Suite and support compliance for the Prevailing Wages team.
+
+I'm building toward a career in data analytics and business intelligence, with hands-on experience in SQL, R, and Stata, and IBM certifications in SQL, R, and data visualization. My recent work includes analyzing housing compliance data, building dashboards in Power BI and Tableau, and a semester-long data warehousing project modeling real NYCHA workflows.
+
+Outside of coursework, I previously worked in logistics and freight operations at DRT International Logistics, where I built and managed shipment tracking systems under real operational deadlines.
+
+[📄 View my full resume (PDF)](Justin_Leung_Resume.pdf)
+
+```{r}
+#| include: false
+1+1
+```
+--------------
+Last Updated: `r format(Sys.time(), "%A %m %d, %Y at %H:%M%p")`
