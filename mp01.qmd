@@ -159,9 +159,9 @@ global_by_hours <- NETFLIX_DATA |>
 
 5)The top 10 shows on Netflix covered about `r percent(top10_share, accuracy = 0.1)` of its total watch time.
 
-6)About `r percent(global_by_title, accuracy = 1)` of Netflix Catalog by is international and `r percent(global_by_hours, accuracy = 0.1)` is international by hour.
+6)About `r percent(global_by_title, accuracy = 1)` of Netflix Catalog by is globally and `r percent(global_by_hours, accuracy = 0.1)` is globally by hour.
 
-## Exploratory Questions: Tables
+## TASK 6
 
 ### Top Title in Each Period
 
@@ -268,3 +268,80 @@ NETFLIX_DATA |>
   tab_source_note("Source: Netflix What We Watched reports")
 ```
 
+## TASK 7
+
+## Supporting Calculations for Strategy Memo
+
+```{r}
+period_stats <- NETFLIX_DATA |>
+  summarize(
+    n_titles        = n_distinct(title),
+    total_hours     = sum(hours_viewed),
+    top_title_hours = max(hours_viewed),
+    top_title_share = max(hours_viewed) / sum(hours_viewed),
+    top10_share     = sum(head(sort(hours_viewed, decreasing = TRUE), 10)) / sum(hours_viewed),
+    top1pct_share   = sum(head(sort(hours_viewed, decreasing = TRUE),
+                               ceiling(0.01 * n()))) / sum(hours_viewed),
+    titles_for_half = sum(cumsum(sort(hours_viewed, decreasing = TRUE)) <
+                          0.5 * sum(hours_viewed)) + 1,
+    mean_hours      = mean(hours_viewed),
+    median_hours    = median(hours_viewed),
+    mean_to_median  = mean(hours_viewed) / median(hours_viewed),
+    .by = c(period, period_start)
+  ) |>
+  arrange(period_start)
+
+baseline <- period_stats |> filter(period == "2023H2")
+latest   <- period_stats |> filter(period == "2026H1")
+
+period_stats
+
+tail_stats <- NETFLIX_DATA |>
+  summarize(
+    n_titles          = n(),
+    n_top1            = ceiling(0.01 * n()),
+    mean_outside_top1 = mean(sort(hours_viewed, decreasing = TRUE)[-seq_len(ceiling(0.01 * n()))]),
+    .by = c(period, period_start)
+  ) |>
+  arrange(period_start)
+
+tail_base   <- tail_stats |> filter(period == "2023H2")
+tail_latest <- tail_stats |> filter(period == "2026H1")
+
+tail_stats
+```
+
+
+## Strategy Memo
+
+**To:** Netflix Leadership
+**From:** Justin Leung
+**Re:** Hold the budget for elsewhere 
+
+Recommendation
+
+Netflix should hold its 2027 title count near 2026H1 levels and redirect their budget towards renewals and larger-budget seasons. From 2023H2 to 2026H1, the catalog grew `r percent(latest$n_titles / baseline$n_titles - 1, accuracy = 1)` but total viewing grew only `r percent(latest$total_hours / baseline$total_hours - 1, accuracy = 0.1)`, so the average title now earns less. Meanwhile, about `r round(latest$titles_for_half, -1)` titles per half-year generate half of all the hours.
+
+1. Supply is outrunning demand
+
+Netflix’s supply is growing faster than viewer attention. From 2023H2 to 2026H1, titles reported went from `r comma(baseline$n_titles)` to `r comma(latest$n_titles)` growing about `r percent(latest$n_titles / baseline$n_titles - 1, accuracy = 1)`. While total hours viewed grew only `r percent(latest$total_hours / baseline$total_hours - 1, accuracy = 0.1)` from `r number(baseline$total_hours / 1e9, accuracy = 0.1)` billion to `r number(latest$total_hours / 1e9, accuracy = 0.1)` billion. As a result, mean hours per title fell about `r percent(1 - latest$mean_hours / baseline$mean_hours, accuracy = 1)` from `r number(baseline$mean_hours / 1e6, accuracy = 0.01)` million to `r number(latest$mean_hours / 1e6, accuracy = 0.01)` million. This matters because viewing is growing at roughly `r percent((latest$total_hours / baseline$total_hours - 1) / (latest$n_titles / baseline$n_titles - 1), accuracy = 1)` of the rate of the catalog, so each added title splits a pool of attention that isn’t keeping pace.
+
+2. Trends over time
+
+Since Netflix keeps adding new shows, but people aren't watching enough to keep up. Between 2023H2 and 2026H1, the catalog grew `r percent(latest$n_titles / baseline$n_titles - 1, accuracy = 1)`, while total viewing grew only `r percent(latest$total_hours / baseline$total_hours - 1, accuracy = 0.1)`.The average show gets `r percent(1 - latest$mean_hours / baseline$mean_hours, accuracy = 1)` less attention than before. Along with this viewing is especially concentrated in the "top". The top 10 shows account for `r percent(latest$top10_share, accuracy = 0.1)` of all hours but half of the hours goes to `r latest$titles_for_half` titles. That's only `r percent(latest$titles_for_half / latest$n_titles, accuracy = 0.1)` of all titles. While the average title outside the top 1% fell from `r number(tail_base$mean_outside_top1 / 1e6, accuracy = 0.1)` million to `r number(tail_latest$mean_outside_top1 / 1e6, accuracy = 0.1)` million about a `r percent(1 - tail_latest$mean_outside_top1 / tail_base$mean_outside_top1, accuracy = 1)` decrease.
+
+Next Steps
+
+1. Stop adding more titles. Keep the total about where it is now (around `r comma(round(latest$n_titles, -3))` per half-year). Adding more has meant each title gets fewer views.
+2. Move money away from small, low-performing titles. Put it into bringing back shows that already work and into mid-to-big-budget seasons that can break into the group of ~`r round(latest$titles_for_half, -1)` titles that drives half of all viewing.
+3. Judge success with two simple numbers. First, how well the typical title does (the median, now `r number(latest$median_hours / 1e6, accuracy = 0.1)`M hours and slipping). Second, how many new titles make it into that ~`r round(latest$titles_for_half, -1)`-title top group.
+
+
+
+## AI Usage Statement
+
+::: {.callout-note title="AI Usage Statement" collapse="true"}
+
+Claude was used to write, debug, and find errors in the code for this project, but it did not write any of the non code text. It was also used for a template of how the memo should be.
+
+:::
