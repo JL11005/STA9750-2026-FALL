@@ -227,17 +227,22 @@ NETFLIX_DATA |>
 
 ```{r}
 NETFLIX_DATA |>
-  mutate(type = if_else(str_detect(title, "Season") | coalesce(runtime > 240, FALSE),
-                        "Show", "Movie")) |>
+  mutate(type = case_when(
+    str_detect(title, "Season") ~ "Show",
+    runtime > 240 ~ "Show",
+    !is.na(runtime) ~ "Movie",
+    .default = "Unclassified"
+  )) |>
   summarize(hours = sum(hours_viewed), .by = c(period, period_start, type)) |>
   mutate(share = hours / sum(hours), .by = period) |>
   select(period, period_start, type, share) |>
-  pivot_wider(names_from = type, values_from = share) |>
+  pivot_wider(names_from = type, values_from = share, values_fill = 0) |>
   arrange(period_start) |>
-  select(-period_start) |>
+  select(period, Show, Movie, Unclassified) |>
   gt() |>
-  cols_label(period = "Period", Show = "Shows", Movie = "Movies") |>
-  fmt_percent(c(Show, Movie), decimals = 1) |>
+  cols_label(period = "Period", Show = "Shows", Movie = "Movies",
+             Unclassified = "Unclassified (no runtime)") |>
+  fmt_percent(c(Show, Movie, Unclassified), decimals = 1) |>
   tab_header(title = "...", subtitle = "...") |>
   tab_source_note("Source: Netflix What We Watched reports; show/movie split is a heuristic")
 ```
