@@ -125,6 +125,7 @@ n_titles <- n_distinct(NETFLIX_DATA$title)
 
 bridgerton_hours <- NETFLIX_DATA |>
   filter(str_detect(title, "Bridgerton")) |>
+  filter_out(str_detect(title, "Fireplace|Afterparty")) |>
   summarize(total = sum(hours_viewed)) |>
   pull(total)
 
@@ -210,8 +211,8 @@ NETFLIX_DATA |>
             min_hours = min(hours_viewed),
             sd_hours = sd(hours_viewed),
             .by = title) |>
-  filter(n_periods == n_distinct(NETFLIX_DATA$period)) |>
   mutate(cv = sd_hours / avg_hours) |>
+  filter(n_periods == n_distinct(NETFLIX_DATA$period), cv < 0.3) |>
   slice_max(min_hours, n = 10) |>
   select(title, avg_hours, min_hours, cv) |>
   gt() |>
@@ -266,3 +267,4 @@ NETFLIX_DATA |>
   tab_header(title = "...", subtitle = "...") |>
   tab_source_note("Source: Netflix What We Watched reports")
 ```
+
