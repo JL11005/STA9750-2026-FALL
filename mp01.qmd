@@ -110,25 +110,26 @@ NETFLIX_DATA <- load_netflix_data()
 library(skimr)
 glimpse(NETFLIX_DATA)
 skim(NETFLIX_DATA)
-NETFLIX_DATA |> slice_sample(n = 10)
 ```
 
 ## TASK 5
 ```{r}
-
 library(scales)
 
+# Q1: the date range of the data
 date_start <- min(NETFLIX_DATA$period_start)
 date_end   <- max(NETFLIX_DATA$period_end)
 
+# Q2: how many different titles
 n_titles <- n_distinct(NETFLIX_DATA$title)
 
+# Q3: hours spent on every Bridgerton title
 bridgerton_hours <- NETFLIX_DATA |>
   filter(str_detect(title, "Bridgerton")) |>
-  filter_out(str_detect(title, "Fireplace|Afterparty")) |>
   summarize(total = sum(hours_viewed)) |>
   pull(total)
 
+# Q4: Stranger Things hours (leaving out the spin-offs and the Fireplace video)
 stranger_hours <- NETFLIX_DATA |>
   filter(str_detect(title, "Stranger Things")) |>
   filter_out(str_detect(title, "Beyond Stranger Things")) |>
@@ -137,29 +138,42 @@ stranger_hours <- NETFLIX_DATA |>
   summarize(total = sum(hours_viewed)) |>
   pull(total)
 
-top10_share <- NETFLIX_DATA |>
-  filter(period == "2026H1") |>
-  arrange(desc(hours_viewed)) |>
-  summarize(share = sum(head(hours_viewed, 10)) / sum(hours_viewed)) |>
-  pull(share)
+# Q5: share of 2026H1 watch time going to the 10 biggest titles
+data_2026 <- NETFLIX_DATA |>
+  filter(period == "2026H1")
 
+top10_hours <- data_2026 |>
+  arrange(desc(hours_viewed)) |>
+  slice_head(n = 10) |>
+  summarize(total = sum(hours_viewed)) |>
+  pull(total)
+
+top10_share <- top10_hours / sum(data_2026$hours_viewed)
+
+# Q6: how much of the catalog is available everywhere
 global_by_title <- mean(NETFLIX_DATA$available_globally, na.rm = TRUE)
-global_by_hours <- NETFLIX_DATA |>
-  filter(!is.na(available_globally)) |>
-  summarize(share = sum(hours_viewed[available_globally]) / sum(hours_viewed)) |>
-  pull(share)
+
+known_data <- NETFLIX_DATA |>
+  filter(!is.na(available_globally))
+
+global_hours <- known_data |>
+  filter(available_globally) |>
+  summarize(total = sum(hours_viewed)) |>
+  pull(total)
+
+global_by_hours <- global_hours / sum(known_data$hours_viewed)
 ```
 1) The data set covers a date range starting from `r month(date_start, label = TRUE, abbr = FALSE)` `r label_ordinal()(day(date_start))`,`r year(date_start)` and ending at `r month(date_end, label = TRUE, abbr = FALSE)` `r label_ordinal()(day(date_end))` `r year(date_end)`.
 
-2)The data set covers `r comma(n_titles)` distinct titles.
+2) The data set covers `r comma(n_titles)` distinct titles.
 
-3)Netflix users have spent `r comma(bridgerton_hours)` hours watching Bridgerton.
+3) Netflix users have spent `r comma(bridgerton_hours)` hours watching Bridgerton.
 
-4)Netflix users have spent `r comma(stranger_hours)` hours watching the five seasons of stranger things.
+4) Netflix users have spent `r comma(stranger_hours)` hours watching the five seasons of stranger things.
 
-5)The top 10 shows on Netflix covered about `r percent(top10_share, accuracy = 0.1)` of its total watch time.
+5) The top 10 shows on Netflix covered about `r percent(top10_share, accuracy = 0.1)` of its total watch time.
 
-6)About `r percent(global_by_title, accuracy = 1)` of Netflix Catalog by is globally and `r percent(global_by_hours, accuracy = 0.1)` is globally by hour.
+6) About `r percent(global_by_title, accuracy = 1)` of Netflix Catalog is globally available and `r percent(global_by_hours, accuracy = 0.1)` is globally viewed by the hour.
 
 ## TASK 6
 
@@ -169,94 +183,109 @@ global_by_hours <- NETFLIX_DATA |>
 library(gt)
 
 NETFLIX_DATA |>
-  mutate(share = hours_viewed / sum(hours_viewed), .by = period) |>
-  slice_max(hours_viewed, n = 1, by = period, with_ties = FALSE) |>
-  arrange(period) |>
+  group_by(period) |>
+  mutate(share = hours_viewed / sum(hours_viewed)) |>   # each title's share of its period
+  slice_max(hours_viewed, n = 1, with_ties = FALSE) |>  # keep the #1 title in each period
+  ungroup() |>
   select(period, title, hours_viewed, share) |>
   gt() |>
   cols_label(period = "Period", title = "Top Title",
              hours_viewed = "Hours Viewed", share = "Share of Period Viewing") |>
   fmt_number(hours_viewed, decimals = 1, suffixing = TRUE) |>
   fmt_percent(share, decimals = 1) |>
-  tab_header(title = "...", subtitle = "...") |>
   tab_source_note("Source: Netflix What We Watched reports")
 ```
+I divided each title’s hours by its period’s total hours and kept only the #1 title per period, which captured between 0.9% and 1.4% of viewing.
 
 ### Catalog Size Over Time
 
 ```{r}
 NETFLIX_DATA |>
-  summarize(n_titles = n_distinct(title),
-            total_runtime_hours = sum(runtime, na.rm = TRUE) / 60,
-            n_missing_runtime = sum(is.na(runtime)),
-            .by = c(period, period_start)) |>
-  arrange(period_start) |>
-  select(-period_start) |>
+  group_by(period) |>
+  summarize(
+    n_titles = n_distinct(title),                            # how many titles
+    total_runtime_hours = sum(runtime, na.rm = TRUE) / 60,   # total length, in hours
+    n_missing_runtime = sum(is.na(runtime))                  # titles with no runtime
+  ) |>
   gt() |>
   cols_label(period = "Period", n_titles = "Titles Reported",
              total_runtime_hours = "Total Runtime (hours)",
              n_missing_runtime = "Titles Missing Runtime") |>
   fmt_number(c(n_titles, total_runtime_hours, n_missing_runtime),
              decimals = 0) |>
-  tab_header(title = "...", subtitle = "...") |>
   tab_source_note("Source: Netflix What We Watched reports")
 ```
+I measured catalog size by both distinct titles and total runtime hours, and I base trends on 2023H2 onward because 12,415 of 2023H1’s 18,126 titles have no runtime.
 
 ### Consistently Watched Titles
 
 ```{r}
-NETFLIX_DATA |>
-  summarize(n_periods = n_distinct(period),
-            avg_hours = mean(hours_viewed),
-            min_hours = min(hours_viewed),
-            sd_hours = sd(hours_viewed),
-            .by = title) |>
-  mutate(cv = sd_hours / avg_hours) |>
-  filter(n_periods == n_distinct(NETFLIX_DATA$period), cv < 0.3) |>
+# Step 1: summarize each title across all periods
+title_summary <- NETFLIX_DATA |>
+  group_by(title) |>
+  summarize(
+    n_periods = n_distinct(period),
+    avg_hours = mean(hours_viewed),
+    min_hours = min(hours_viewed),
+    sd_hours = sd(hours_viewed)
+  ) |>
+  mutate(variability = sd_hours / avg_hours)   # small = steady viewing
+
+all_periods <- n_distinct(NETFLIX_DATA$period)
+
+# Step 2: keep steady titles that appear in every period,
+#         then take the 10 with the best worst-period
+title_summary |>
+  filter(n_periods == all_periods) |>
+  filter(variability < 0.3) |>
   slice_max(min_hours, n = 10) |>
-  select(title, avg_hours, min_hours, cv) |>
+  select(title, avg_hours, min_hours, variability) |>
   gt() |>
   cols_label(title = "Title", avg_hours = "Avg. Hours per Period",
-             min_hours = "Lowest Period (Hours)", cv = "Variability (SD / Mean)") |>
+             min_hours = "Lowest Period (Hours)",
+             variability = "Variability (SD / Mean)") |>
   fmt_number(c(avg_hours, min_hours), decimals = 1, suffixing = TRUE) |>
-  fmt_number(cv, decimals = 2) |>
-  tab_header(title = "...", subtitle = "...") |>
+  fmt_number(variability, decimals = 2) |>
   tab_source_note("Source: Netflix What We Watched reports")
 ```
+I kept titles that appear in all seven periods with variability (SD divided by mean) below 0.3, then ranked them by their lowest-period hours so the list rewards a high floor rather than a one-time spike.
 
 ### Shows vs. Movies
 
 ```{r}
 NETFLIX_DATA |>
   mutate(type = case_when(
-    str_detect(title, "Season") ~ "Show",
-    runtime > 240 ~ "Show",
-    !is.na(runtime) ~ "Movie",
-    .default = "Unclassified"
+    str_detect(title, "Season") ~ "Show",   # "Season" in the name means a TV show
+    runtime > 240 ~ "Show",                 # longer than 4 hours is probably a show
+    !is.na(runtime) ~ "Movie",              # everything else with a runtime
+    .default = "Unclassified"               # no runtime, so we can't tell
   )) |>
-  summarize(hours = sum(hours_viewed), .by = c(period, period_start, type)) |>
-  mutate(share = hours / sum(hours), .by = period) |>
-  select(period, period_start, type, share) |>
-  pivot_wider(names_from = type, values_from = share, values_fill = 0) |>
-  arrange(period_start) |>
-  select(period, Show, Movie, Unclassified) |>
+  group_by(period) |>
+  summarize(
+    Show = sum(hours_viewed[type == "Show"]) / sum(hours_viewed),
+    Movie = sum(hours_viewed[type == "Movie"]) / sum(hours_viewed),
+    Unclassified = sum(hours_viewed[type == "Unclassified"]) / sum(hours_viewed)
+  ) |>
   gt() |>
   cols_label(period = "Period", Show = "Shows", Movie = "Movies",
              Unclassified = "Unclassified (no runtime)") |>
   fmt_percent(c(Show, Movie, Unclassified), decimals = 1) |>
-  tab_header(title = "...", subtitle = "...") |>
   tab_source_note("Source: Netflix What We Watched reports; show/movie split is a heuristic")
 ```
+I labeled a title a show if its name contains “Season” or its runtime exceeds 240 minutes, a movie if it has a shorter runtime, and unclassified if it has no runtime, which means the roughly 3% to 4% movie share is approximate.
 
 ### Live Events vs. Pre-Taped Content
 
 ```{r}
 NETFLIX_DATA |>
-  summarize(n_titles = n(),
-            avg_hours = mean(hours_viewed),
-            median_hours = median(hours_viewed),
-            top10_avg = mean(head(sort(hours_viewed, decreasing = TRUE), 10)),
-            .by = live_event) |>
+  group_by(live_event) |>
+  summarize(
+    n_titles = n(),
+    avg_hours = mean(hours_viewed),
+    median_hours = median(hours_viewed),
+    # sort biggest to smallest, keep the first 10, then average them
+    top10_avg = mean(sort(hours_viewed, decreasing = TRUE)[1:10])
+  ) |>
   mutate(live_event = if_else(live_event, "Live Event", "Pre-Taped")) |>
   gt() |>
   cols_label(live_event = "Type", n_titles = "Title-Periods",
@@ -264,73 +293,68 @@ NETFLIX_DATA |>
              top10_avg = "Average of Top 10") |>
   fmt_number(n_titles, decimals = 0) |>
   fmt_number(c(avg_hours, median_hours, top10_avg), decimals = 1, suffixing = TRUE) |>
-  tab_header(title = "...", subtitle = "...") |>
   tab_source_note("Source: Netflix What We Watched reports")
 ```
+I compared the average, median, and top-10 average for each group, and while typical titles perform about the same (1.7M vs. 1.8M median hours), the best pre-taped titles far outdraw the best live events (791.4M vs. 36.7M) in a live sample of only 310 rows.
 
 ## TASK 7
 
 ## Supporting Calculations for Strategy Memo
 
 ```{r}
-period_stats <- NETFLIX_DATA |>
+# Rank titles within each period (biggest first) and track a running share
+ranked_titles <- NETFLIX_DATA |>
+  group_by(period) |>
+  arrange(desc(hours_viewed), .by_group = TRUE) |>
+  mutate(
+    title_rank = row_number(),
+    running_share = cumsum(hours_viewed) / sum(hours_viewed)
+  )
+
+# One row per period
+period_stats <- ranked_titles |>
   summarize(
-    n_titles        = n_distinct(title),
-    total_hours     = sum(hours_viewed),
-    top_title_hours = max(hours_viewed),
-    top_title_share = max(hours_viewed) / sum(hours_viewed),
-    top10_share     = sum(head(sort(hours_viewed, decreasing = TRUE), 10)) / sum(hours_viewed),
-    top1pct_share   = sum(head(sort(hours_viewed, decreasing = TRUE),
-                               ceiling(0.01 * n()))) / sum(hours_viewed),
-    titles_for_half = sum(cumsum(sort(hours_viewed, decreasing = TRUE)) <
-                          0.5 * sum(hours_viewed)) + 1,
-    mean_hours      = mean(hours_viewed),
-    median_hours    = median(hours_viewed),
-    mean_to_median  = mean(hours_viewed) / median(hours_viewed),
-    .by = c(period, period_start)
-  ) |>
-  arrange(period_start)
+    n_titles = n_distinct(title),
+    total_hours = sum(hours_viewed),
+    mean_hours = mean(hours_viewed),
+    median_hours = median(hours_viewed),
+    top10_share = sum(hours_viewed[title_rank <= 10]) / sum(hours_viewed),
+    titles_for_half = sum(running_share < 0.5) + 1   # titles needed to reach half of all hours
+  )
 
 baseline <- period_stats |> filter(period == "2023H2")
 latest   <- period_stats |> filter(period == "2026H1")
 
-period_stats
-
-tail_stats <- NETFLIX_DATA |>
-  summarize(
-    n_titles          = n(),
-    n_top1            = ceiling(0.01 * n()),
-    mean_outside_top1 = mean(sort(hours_viewed, decreasing = TRUE)[-seq_len(ceiling(0.01 * n()))]),
-    .by = c(period, period_start)
-  ) |>
-  arrange(period_start)
+# Average hours for titles outside each period's top 1%
+tail_stats <- ranked_titles |>
+  mutate(is_top1pct = title_rank <= ceiling(0.01 * n())) |>
+  filter(!is_top1pct) |>
+  summarize(mean_outside_top1 = mean(hours_viewed))
 
 tail_base   <- tail_stats |> filter(period == "2023H2")
 tail_latest <- tail_stats |> filter(period == "2026H1")
-
-tail_stats
 ```
 
 
 ## Strategy Memo
 
-**To:** Netflix Leadership
-**From:** Justin Leung
-**Re:** Hold the budget for elsewhere 
+**To:** Netflix Leadership\
+**From:** Justin Leung\
+**Re:** Hold the budget for elsewhere
 
-Recommendation
+### Recommendation
 
 Netflix should hold its 2027 title count near 2026H1 levels and redirect their budget towards renewals and larger-budget seasons. From 2023H2 to 2026H1, the catalog grew `r percent(latest$n_titles / baseline$n_titles - 1, accuracy = 1)` but total viewing grew only `r percent(latest$total_hours / baseline$total_hours - 1, accuracy = 0.1)`, so the average title now earns less. Meanwhile, about `r round(latest$titles_for_half, -1)` titles per half-year generate half of all the hours.
 
-1. Supply is outrunning demand
+### 1. Supply is outrunning demand
 
 Netflix’s supply is growing faster than viewer attention. From 2023H2 to 2026H1, titles reported went from `r comma(baseline$n_titles)` to `r comma(latest$n_titles)` growing about `r percent(latest$n_titles / baseline$n_titles - 1, accuracy = 1)`. While total hours viewed grew only `r percent(latest$total_hours / baseline$total_hours - 1, accuracy = 0.1)` from `r number(baseline$total_hours / 1e9, accuracy = 0.1)` billion to `r number(latest$total_hours / 1e9, accuracy = 0.1)` billion. As a result, mean hours per title fell about `r percent(1 - latest$mean_hours / baseline$mean_hours, accuracy = 1)` from `r number(baseline$mean_hours / 1e6, accuracy = 0.01)` million to `r number(latest$mean_hours / 1e6, accuracy = 0.01)` million. This matters because viewing is growing at roughly `r percent((latest$total_hours / baseline$total_hours - 1) / (latest$n_titles / baseline$n_titles - 1), accuracy = 1)` of the rate of the catalog, so each added title splits a pool of attention that isn’t keeping pace.
 
-2. Trends over time
+### 2. Trends over time
 
 Since Netflix keeps adding new shows, but people aren't watching enough to keep up. Between 2023H2 and 2026H1, the catalog grew `r percent(latest$n_titles / baseline$n_titles - 1, accuracy = 1)`, while total viewing grew only `r percent(latest$total_hours / baseline$total_hours - 1, accuracy = 0.1)`.The average show gets `r percent(1 - latest$mean_hours / baseline$mean_hours, accuracy = 1)` less attention than before. Along with this viewing is especially concentrated in the "top". The top 10 shows account for `r percent(latest$top10_share, accuracy = 0.1)` of all hours but half of the hours goes to `r latest$titles_for_half` titles. That's only `r percent(latest$titles_for_half / latest$n_titles, accuracy = 0.1)` of all titles. While the average title outside the top 1% fell from `r number(tail_base$mean_outside_top1 / 1e6, accuracy = 0.1)` million to `r number(tail_latest$mean_outside_top1 / 1e6, accuracy = 0.1)` million about a `r percent(1 - tail_latest$mean_outside_top1 / tail_base$mean_outside_top1, accuracy = 1)` decrease.
 
-Next Steps
+### Next Steps
 
 1. Stop adding more titles. Keep the total about where it is now (around `r comma(round(latest$n_titles, -3))` per half-year). Adding more has meant each title gets fewer views.
 2. Move money away from small, low-performing titles. Put it into bringing back shows that already work and into mid-to-big-budget seasons that can break into the group of ~`r round(latest$titles_for_half, -1)` titles that drives half of all viewing.
