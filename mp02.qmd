@@ -445,7 +445,7 @@ emissions_data <- emissions_data |>
       `Gallons of Compressed Natural Gas` * co2_cng +
       `Gallons of Liquified Nat Gas` * co2_lng +
       electricity_mwh * CO2_MWh,
-    total_co2_tons = total_co2_lbs / 2204.62     # pounds -> metric tons
+    total_co2_tons = total_co2_lbs / 2204.62    
   )
 ```
 
@@ -552,3 +552,101 @@ dirtiest |>
   fmt_number(c(lbs_per_mile, large_median, lbs_per_trip), decimals = 2) |>
   tab_source_note("Source: National Transit Database; U.S. Energy Information Administration")
 ```
+
+## Task 8: Press Release
+
+```{r}
+large_winner  <- greenest_table$`Agency Name`[1]
+large_value   <- greenest_table$lbs_per_trip[1]
+large_median  <- greenest_table$median_lbs_per_trip[1]
+large_times   <- greenest_table$times_below_median[1]
+
+medium_winner <- greenest_table$`Agency Name`[2]
+medium_value  <- greenest_table$lbs_per_trip[2]
+medium_median <- greenest_table$median_lbs_per_trip[2]
+medium_times  <- greenest_table$times_below_median[2]
+
+small_winner  <- greenest_table$`Agency Name`[3]
+small_value   <- greenest_table$lbs_per_trip[3]
+small_median  <- greenest_table$median_lbs_per_trip[3]
+small_times   <- greenest_table$times_below_median[3]
+
+worst_name  <- dirtiest$`Agency Name`[1]
+worst_value <- dirtiest$lbs_per_mile[1]
+
+
+n_ranked <- nrow(agency_summary)
+```
+
+Transit Emissions Report Recognizes the Greenest Agencies and Identifies High-Emitting Large Transit Systems
+
+  A review of public transit agencies across the US has identified agencies with the lowest CO2 emissions relative to passengers, while also highlighting large transit systems with comparatively high emissions. Using data from the National Transit Database (NTD) and the U.S. Energy Information Administration (EIA), this analysis evaluated transit agencies based on their emissions per passenger trip and per passenger mile. 
+
+  The Greenest Transit Agency Award recognizes the agency with the lowest CO2 emissions per passenger trip within each category. This metric was calculated by dividing each agency's total CO2 emissions by its total unlinked passenger trips (UPT). The winners among large agencies the winner was Tri-County Metropolitan Transportation District of Oregon, with 0.40 pounds of CO2 per trip; for medium agencies, Anaheim Transportation Network were the winner, with 0.20 pounds per trip; and lastly the City of Seattle won among small agencies, with 0.06 pounds per trip.
+
+  Compared to the median agency for each groups, these winners performed much better. The median emissions were 2.71 pounds per trip for large agencies, 4.17 for medium agencies, and 7.36 for small agencies. These results demonstrate that the winning agencies produce substantially fewer emissions relative to the number of passenger trips they serve.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+chart1_data <- bind_rows(
+  greenest_table |>
+    transmute(group = paste0(size, ": ", `Agency Name`),
+              who = "Winner", lbs = lbs_per_trip),
+  greenest_table |>
+    transmute(group = paste0(size, ": ", `Agency Name`),
+              who = "Median agency", lbs = median_lbs_per_trip)
+) |>
+  mutate(group = factor(group, levels = unique(group)))   
+
+ggplot(chart1_data, aes(x = group, y = lbs, fill = who)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = round(lbs, 2)),
+            position = position_dodge(width = 0.9), vjust = -0.4, size = 5) +
+  scale_x_discrete(labels = scales::label_wrap(22)) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+  scale_fill_manual(values = c("Winner" = "darkgreen", "Median agency" = "gray60")) +
+  labs(title = "Greenest Transit Agencies vs. the Typical Agency",
+       subtitle = "Pounds of CO2 per passenger trip, by agency size group",
+       x = NULL, y = "Pounds of CO2 per trip",
+       caption = "Source: National Transit Database; U.S. Energy Information Administration") +
+  theme_minimal(base_size = 14) +
+  theme(legend.title = element_blank(), legend.position = "top")
+```
+
+  This award identifies the agency with the highest CO2 emissions per passenger mile. Emissions per passenger mile were calculated by dividing an agency's total CO2 emissions by its total passenger miles. Ranked first was Pittsburgh Regional Transit, producing approximately 0.99 pounds of CO2 per passenger mile. Which was much higher than the median for large agency, which produces approximately 0.57 pounds per passenger mile. This award highlights opportunities for large transit systems to examine their energy consumption to improve operational efficiency.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+top_miles <- agency_summary |>
+  filter(size == "Large") |>
+  arrange(desc(lbs_per_mile)) |>
+  head(10) |>
+  mutate(top3 = row_number() <= 3)    
+
+ggplot(top_miles,
+       aes(x = reorder(str_wrap(`Agency Name`, 30), lbs_per_mile),
+           y = lbs_per_mile, fill = top3)) +
+  geom_col() +
+  geom_hline(yintercept = large_median_mile, linetype = "dashed") +
+  coord_flip() +
+  scale_fill_manual(values = c("TRUE" = "firebrick", "FALSE" = "gray70"),
+                    guide = "none") +
+  labs(title = "Large Agencies With the Highest CO2 per Passenger Mile",
+       subtitle = paste0("Dashed line = median large agency (",
+                         round(large_median_mile, 2), " lbs per passenger mile)"),
+       x = NULL, y = "Pounds of CO2 per passenger mile",
+       caption = "Source: National Transit Database; U.S. Energy Information Administration") +
+  theme_minimal(base_size = 14)
+```
+
+  The analysis combines transit usage and energy consumption data from the National Transit Database with state electricity emissions factors from the U.S. Energy Information Administration to estimate each agency's operational CO2 emissions per passenger trip and passenger mile. Additionally these estimate, and result do not capture the full life cycle of emissions, so these results shouldn't be interpreted as a complete measure of each agencies environmental impact. 
+
+## AI Usage Statement
+
+::: {.callout-note title="AI Usage Statement" collapse="true"}
+
+For this project I used Claude as a coding assistant and a guide through out this project. Some of the code within this project was correct and fixed by Claude. Along with the code, Claude helped me brainstorm different award ideas. Claude did not contribute to any of the written text or interpretation of the analysis.
+
+:::
