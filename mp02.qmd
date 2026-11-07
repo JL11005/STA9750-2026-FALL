@@ -484,7 +484,7 @@ agency_summary <- agency_summary |>
 
 Based on emissions per passenger mile, the most efficient agencies were:
 - Large: Tri-County Metropolitan Transportation District of Oregon, with 0.0983 lbs of CO2 per passenger mile.
-- Medium: Snohomish County Public Transportation Benefit Area Corporation, with 0.147 lbs of CO2 per passenger mile.
+- Medium: Anaheim County Public Transportation Benefit Area Corporation, with 0.147 lbs of CO2 per passenger mile.
 - Small: City of Seattle, with 0.0639 lbs of CO2 per passenger mile.
 
 ## Task 7: Award Winners
